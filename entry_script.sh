@@ -1,4 +1,5 @@
 #!/bin/bash
-
-echo "Hello world" > index.html
-python3 -m http.server 8000
+yum install -y httpd
+systemctl start httpd
+systemctl enable httpd
+echo "Hello World" > /var/www/html/index.html
