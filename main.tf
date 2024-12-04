@@ -287,3 +287,18 @@ resource "aws_lb" "load_balancer" {
   security_groups    = [aws_security_group.alb_sg.id]
 }
 
+resource "aws_route53_zone" "primary" {
+  name = "stanleychukwu.com"
+}
+
+resource "aws_route53_record" "root" {
+  zone_id = aws_route53_zone.primary.zone_id
+  name    = aws_route53_zone.primary.name
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.load_balancer.dns_name
+    zone_id                = aws_lb.load_balancer.zone_id
+    evaluate_target_health = true
+  }
+}
