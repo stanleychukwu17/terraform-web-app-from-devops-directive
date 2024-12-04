@@ -28,6 +28,12 @@ variable "allowed_http_ip" {
   type        = list(string)
 }
 
+variable "allowed_outbound_ip" {
+  description = "for security groups - A list of ip addresses that can make outbound connections/request from the ec2 instance"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 variable "ssh_key_path" {
   description = "path to ssh public key for ec2 instance"
   type        = string
