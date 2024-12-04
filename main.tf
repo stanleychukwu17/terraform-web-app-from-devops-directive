@@ -302,3 +302,15 @@ resource "aws_route53_record" "root" {
     evaluate_target_health = true
   }
 }
+
+resource "aws_db_instance" "db_postgres_instance" {
+  allocated_storage = 20
+  storage_type = "standard"
+  engine            = "postgres"
+  engine_version    = "15.2"
+  instance_class    = "db.t2.micro"
+  db_name           = "devops_directive_demo_db"
+  username          = "stanley"
+  password          = "stanley123"
+  skip_final_snapshot = true
+}
