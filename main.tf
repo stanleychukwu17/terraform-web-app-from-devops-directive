@@ -158,13 +158,13 @@ resource "aws_instance" "ec2_a" {
 
 # ec2 instance-1
 resource "aws_instance" "ec2_b" {
-  ami = data.aws_ami.ubuntu.id
-  instance_type = "t2.micro"
-  subnet_id = aws_subnet.demo_subnet.id
-  vpc_security_group_ids = [aws_security_group.demo_sg.id]
-  key_name = aws_key_pair.demo_key.key_name
+  ami                         = data.aws_ami.ubuntu.id
+  instance_type               = "t2.micro"
+  subnet_id                   = aws_subnet.demo_subnet.id
+  vpc_security_group_ids      = [aws_security_group.demo_sg.id]
+  key_name                    = aws_key_pair.demo_key.key_name
   associate_public_ip_address = true
-  user_data = file("entry_script.sh")
+  user_data                   = file("entry_script.sh")
 
   tags = {
     Name = "${local.common_tags.Name} EC2 instance 2"
@@ -173,8 +173,8 @@ resource "aws_instance" "ec2_b" {
 
 # s3 bucket for the application
 resource "aws_s3_bucket" "bucket" {
-    bucket = "devops-directive-demo-app-data-2024-12-04-03-10-20"
-    force_destroy = true
+  bucket        = "devops-directive-demo-app-data-2024-12-04-03-10-20"
+  force_destroy = true
 }
 
 # encryption of the data in the s3 bucket
@@ -187,3 +187,103 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "data_encryption" 
     }
   }
 }
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.load_balancer.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "404 Not Found"
+      status_code  = 404
+    }
+  }
+}
+
+resource "aws_lb_target_group" "ec2_instances" {
+  name     = "devops-directive-demo-tg"
+  port     = 8080
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.demo_vpc.id
+
+  health_check {
+    path                = "/"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 15
+    timeout             = 3
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+
+resource "aws_lb_target_group_attachment" "ec2_a" {
+  target_group_arn = aws_lb_target_group.ec2_instances.arn
+  target_id        = aws_instance.ec2_a.id
+  port             = 8080
+}
+
+resource "aws_lb_target_group_attachment" "ec2_b" {
+  target_group_arn = aws_lb_target_group.ec2_instances.arn
+  target_id        = aws_instance.ec2_b.id
+  port             = 8080
+}
+
+resource "aws_lb_listener_rule" "ec2_instances" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.ec2_instances.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["*"]
+    }
+  }
+}
+
+resource "aws_security_group" "alb_sg" {
+  vpc_id = aws_vpc.demo_vpc.id
+
+  ingress = [
+    {
+      from_port        = 80
+      to_port          = 80
+      protocol         = "tcp"
+      cidr_blocks      = var.allowed_http_ip
+      description      = "Allow all http inbound traffic"
+      ipv6_cidr_blocks = []
+      self             = false
+      security_groups  = null
+      prefix_list_ids  = null
+    }
+  ]
+
+  egress = [
+    {
+      from_port        = 0
+      to_port          = 0
+      protocol         = "-1"
+      cidr_blocks      = ["0.0.0.0/0"]
+      description      = "Allow all outbound traffic"
+      ipv6_cidr_blocks = []
+      self             = false
+      security_groups  = null
+      prefix_list_ids  = null
+    }
+  ]
+}
+
+resource "aws_lb" "load_balancer" {
+  name               = "devops-directive-demo-alb"
+  load_balancer_type = "application"
+  subnets            = [aws_subnet.demo_subnet.id]
+  security_groups    = [aws_security_group.alb_sg.id]
+}
+
