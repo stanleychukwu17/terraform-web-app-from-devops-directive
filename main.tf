@@ -32,14 +32,25 @@ resource "aws_vpc" "demo_vpc" {
   }
 }
 
-# sub-network 
-resource "aws_subnet" "demo_subnet" {
+# sub-network-1
+resource "aws_subnet" "subnet_1" {
   vpc_id            = aws_vpc.demo_vpc.id
   cidr_block        = "10.0.1.0/24"
   availability_zone = var.aws_availability_zone[0]
 
   tags = {
-    Name = "${local.common_tags.Name} Subnet"
+    Name = "${local.common_tags.Name} Subnet 1"
+  }
+}
+
+# sub-network-2
+resource "aws_subnet" "subnet_2" {
+  vpc_id            = aws_vpc.demo_vpc.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = var.aws_availability_zone[1]
+
+  tags = {
+    Name = "${local.common_tags.Name} Subnet 2"
   }
 }
 
@@ -66,6 +77,16 @@ resource "aws_route_table" "demo_rt" {
   }
 }
 
+# association of the route table to the subnet
+resource "aws_route_table_association" "rt_association_1" {
+  subnet_id      = aws_subnet.subnet_1.id
+  route_table_id = aws_route_table.demo_rt.id
+}
+
+resource "aws_route_table_association" "rt_association_2" {
+  subnet_id      = aws_subnet.subnet_2.id
+  route_table_id = aws_route_table.demo_rt.id
+}
 
 # security group
 resource "aws_security_group" "demo_sg" {
@@ -143,9 +164,10 @@ data "aws_ami" "ubuntu" {
 
 # ec2 instance-1
 resource "aws_instance" "ec2_a" {
+  #ami                         = "ami-05edb7c94b324f73c"
   ami                         = data.aws_ami.ubuntu.id
-  instance_type               = "t2.micro"
-  subnet_id                   = aws_subnet.demo_subnet.id
+  instance_type               = "t3.micro"
+  subnet_id                   = aws_subnet.subnet_1.id
   vpc_security_group_ids      = [aws_security_group.demo_sg.id]
   key_name                    = aws_key_pair.demo_key.key_name
   associate_public_ip_address = true
@@ -159,8 +181,8 @@ resource "aws_instance" "ec2_a" {
 # ec2 instance-1
 resource "aws_instance" "ec2_b" {
   ami                         = data.aws_ami.ubuntu.id
-  instance_type               = "t2.micro"
-  subnet_id                   = aws_subnet.demo_subnet.id
+  instance_type               = "t3.micro"
+  subnet_id                   = aws_subnet.subnet_2.id
   vpc_security_group_ids      = [aws_security_group.demo_sg.id]
   key_name                    = aws_key_pair.demo_key.key_name
   associate_public_ip_address = true
@@ -252,12 +274,27 @@ resource "aws_security_group" "alb_sg" {
   vpc_id = aws_vpc.demo_vpc.id
 
   ingress = [
+    # Allow HTTP traffic from the ALB on port 80
     {
       from_port        = 80
       to_port          = 80
       protocol         = "tcp"
       cidr_blocks      = var.allowed_http_ip
       description      = "Allow all http inbound traffic"
+      ipv6_cidr_blocks = []
+      self             = false
+      security_groups  = null
+      prefix_list_ids  = null
+    },
+
+    # Allow HTTP traffic on port 8080 from the ALB to EC2 instances
+    # EC2 instances are registered with the target group on port 8080
+    {
+      from_port        = 8080
+      to_port          = 8080
+      protocol         = "tcp"
+      cidr_blocks      = var.allowed_http_ip
+      description      = "Allow all http inbound traffic on port 8080"
       ipv6_cidr_blocks = []
       self             = false
       security_groups  = null
@@ -270,7 +307,7 @@ resource "aws_security_group" "alb_sg" {
       from_port        = 0
       to_port          = 0
       protocol         = "-1"
-      cidr_blocks      = ["0.0.0.0/0"]
+      cidr_blocks      = var.allowed_outbound_ip
       description      = "Allow all outbound traffic"
       ipv6_cidr_blocks = []
       self             = false
@@ -283,7 +320,7 @@ resource "aws_security_group" "alb_sg" {
 resource "aws_lb" "load_balancer" {
   name               = "devops-directive-demo-alb"
   load_balancer_type = "application"
-  subnets            = [aws_subnet.demo_subnet.id]
+  subnets            = [aws_subnet.subnet_1.id, aws_subnet.subnet_2.id]
   security_groups    = [aws_security_group.alb_sg.id]
 }
 
@@ -304,13 +341,14 @@ resource "aws_route53_record" "root" {
 }
 
 resource "aws_db_instance" "db_postgres_instance" {
-  allocated_storage = 20
-  storage_type = "standard"
-  engine            = "postgres"
-  engine_version    = "15.2"
-  instance_class    = "db.t2.micro"
-  db_name           = "devops_directive_demo_db"
-  username          = "stanley"
-  password          = "stanley123"
+  count               = 0
+  allocated_storage   = 20
+  storage_type        = "standard"
+  engine              = "postgres"
+  engine_version      = "15.7"
+  instance_class      = "db.t3.micro"
+  db_name             = "devops_directive_demo_db"
+  username            = "stanley"
+  password            = "stanley123"
   skip_final_snapshot = true
 }
