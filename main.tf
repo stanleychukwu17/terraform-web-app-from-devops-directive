@@ -5,6 +5,14 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  backend "s3" {
+    bucket         = "tfstate-demo-app-remote-backend-2024-12-04-03-10-20"
+    key            = "devops-directive-terraform/demo-app-1/terraform.tfstate"
+    region         = "eu-north-1"
+    dynamodb_table = "tfstate-demo-app-remote-lock"
+    encrypt        = true
+  }
 }
 
 provider "aws" {
@@ -62,7 +70,6 @@ resource "aws_route_table" "demo_rt" {
 # security group
 resource "aws_security_group" "demo_sg" {
   vpc_id = aws_vpc.demo_vpc.id
-
 
   ingress = [
     # for ssh connection
@@ -134,16 +141,49 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-# ec2 instance
-resource "aws_instance" "demo_ec2" {
+# ec2 instance-1
+resource "aws_instance" "ec2_a" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = "t2.micro"
   subnet_id                   = aws_subnet.demo_subnet.id
   vpc_security_group_ids      = [aws_security_group.demo_sg.id]
   key_name                    = aws_key_pair.demo_key.key_name
   associate_public_ip_address = true
+  user_data                   = file("entry_script.sh")
 
   tags = {
-    Name = "${local.common_tags.Name} EC2 instance"
+    Name = "${local.common_tags.Name} EC2 instance 1"
+  }
+}
+
+# ec2 instance-1
+resource "aws_instance" "ec2_b" {
+  ami = data.aws_ami.ubuntu.id
+  instance_type = "t2.micro"
+  subnet_id = aws_subnet.demo_subnet.id
+  vpc_security_group_ids = [aws_security_group.demo_sg.id]
+  key_name = aws_key_pair.demo_key.key_name
+  associate_public_ip_address = true
+  user_data = file("entry_script.sh")
+
+  tags = {
+    Name = "${local.common_tags.Name} EC2 instance 2"
+  }
+}
+
+# s3 bucket for the application
+resource "aws_s3_bucket" "bucket" {
+    bucket = "devops-directive-demo-app-data-2024-12-04-03-10-20"
+    force_destroy = true
+}
+
+# encryption of the data in the s3 bucket
+resource "aws_s3_bucket_server_side_encryption_configuration" "data_encryption" {
+  bucket = aws_s3_bucket.bucket.bucket
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256" # Use the default AES256 encryption algorithm
+    }
   }
 }
