@@ -119,7 +119,6 @@ resource "aws_security_group" "demo_sg" {
     }
   ]
 
-
   egress = [
     # all outbound request are allowed
     {
