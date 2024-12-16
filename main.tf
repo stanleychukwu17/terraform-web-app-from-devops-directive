@@ -128,7 +128,7 @@ resource "aws_security_group" "demo_sg" {
       cidr_blocks      = ["0.0.0.0/0"]
       description      = "Allow all outbound traffic"
       ipv6_cidr_blocks = []   # If you need to allow IPv6, specify the block here
-      self             = true # Refers to allowing traffic to and from the security group itself
+      self             = false # Refers to allowing traffic to and from the security group itself
       security_groups  = null
       prefix_list_ids  = null
     }
@@ -264,7 +264,7 @@ resource "aws_lb_listener_rule" "ec2_instances" {
 
   condition {
     path_pattern {
-      values = ["*"]
+      values = ["*"] # or ["/*"]
     }
   }
 }
